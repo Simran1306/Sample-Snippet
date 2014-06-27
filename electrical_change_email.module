@@ -1,0 +1,104 @@
+<?php
+/**
+* Implements hook_init().
+*/
+function electrical_change_email_init() {	
+	drupal_add_css(drupal_get_path('module', 'electrical_change_email') . '/css/electrical_change_email.css');		
+}
+
+/**
+ * Implements hook_menu().
+ */
+function electrical_change_email_menu() {	
+	$items['change/email'] = array(
+    'title' => '',
+    'description' => '',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('change_login_useremail'),    
+    'access callback' => 'user_is_logged_in',
+    'type' => MENU_CALLBACK,
+  );		
+	return $items;
+}
+
+/**
+ * Implements hook_admin_paths_alter().
+ */
+function electrical_change_email_admin_paths_alter(&$paths) { 
+  $paths['change/email'] = TRUE;
+	return $paths;
+}
+
+/**
+ * Implements hook_form().
+ */
+function change_login_useremail() {
+	global $user;
+	$form = array();
+	$form['current_email'] = array(
+		'#title' => 'Current E-mail',
+		'#type' => 'textfield',
+		'#required' => TRUE,		
+	);
+	$form['new_email'] = array(
+		'#title' => 'New E-mail',
+		'#type' => 'textfield',
+		'#required' => TRUE,
+	);
+	$form['confirm_email'] = array(
+		'#title' => 'Retype E-mail',
+		'#type' => 'textfield',
+		'#required' => TRUE,
+	);
+	$form['update'] = array(		
+		'#type' => 'submit',
+		'#value' => 'Update',
+	);
+	return $form;
+}
+
+/**
+ * Implements hook_form_validate().
+ */
+function change_login_useremail_validate($form, &$form_state) {
+	global $user;
+	$regex = '/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,4}/'; 
+	
+	if (!preg_match($regex, $form_state['input']['current_email'])) {
+		form_set_error('current_email', t('Wrong E-mail format.'));
+	}
+	
+	if (!preg_match($regex, $form_state['input']['new_email'])) {
+		 form_set_error('new_email', t('Wrong E-mail format.'));
+	} 
+	if (!preg_match($regex, $form_state['input']['confirm_email'])) {
+		form_set_error('confirm_email', t('Wrong E-mail format.'));
+	}	
+	
+	if ($user->mail == $form_state['input']['current_email']) {
+		if ($form_state['input']['new_email'] != $form_state['input']['confirm_email']) {
+			form_set_error('confirm_email', t('Retype E-mail does not match.'));
+		} else {		
+			$mailQuery = db_query("SELECT * FROM {users} WHERE mail = :mail", array(':mail' => $form_state['input']['new_email']));
+			$mailCnt   = $mailQuery->rowCount();
+			if ($mailCnt != '') {
+				form_set_error('new_email', t('E-mail address already registered.'));
+				form_set_error('confirm_email', '');
+			}
+		}
+	} else {
+		form_set_error('current_email', t('%email is not your current E-mail address.', array('%email' => trim($form_state['input']['current_email']))));
+	}
+	
+}
+
+/**
+ * Implements hook_form_submit().
+ */
+function change_login_useremail_submit($form, &$form_state) {
+	global $user;
+	$edit = array('mail' => $form_state['input']['new_email']);
+	user_save($user, $edit);
+	drupal_set_message('E-mail address has been changed successfully.');
+	drupal_goto('dashboard/settings');
+}
